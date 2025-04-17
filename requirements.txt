@@ -4,4 +4,4 @@ xgboost
 joblib
 numpy
 pandas
-
+plotly
