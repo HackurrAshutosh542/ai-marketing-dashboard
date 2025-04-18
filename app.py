@@ -53,7 +53,7 @@ with st.form("campaign_form"):
         cons_price_idx = st.slider("Consumer Price Index", 92.0, 95.0, 93.994)
         cons_conf_idx = st.slider("Consumer Confidence Index", -50.0, -20.0, -36.4)
         euribor3m = st.slider("3-Month Euribor Rate", 0.5, 5.0, 4.8)
-        nr_employed = st.slider("# Employed in Economy", 4000, 5500, 5191.0)
+        nr_employed = st.slider("# Employed in Economy", 4000, 5500, 5191)
 
     submitted = st.form_submit_button("🔮 Predict Campaign Success")
 
