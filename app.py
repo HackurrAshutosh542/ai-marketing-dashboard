@@ -4,6 +4,10 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
+import seaborn as sns
+import matplotlib.pyplot as plt
+import re
+from wordcloud import WordCloud
 
 # Load models and columns
 xgb_model = joblib.load("xgboost_best_model.pkl")
@@ -23,19 +27,23 @@ month_list = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oc
 day_list = ['mon', 'tue', 'wed', 'thu', 'fri']
 poutcome_list = ['failure', 'nonexistent', 'success']
 
-st.set_page_config(page_title="CampaignSense Pro", layout="wide")
-st.title("🚀 CampaignSense Pro: AI Marketing Suite")
+# Profanity list
+profanity_words = ["bitch", "asshole", "stupid", "idiot", "dumb", "hate", "ugly", "fool"]
 
-st.markdown("A complete AI-powered tool to predict marketing campaign success and analyze user sentiment. ✨")
+def contains_profanity(text):
+    return any(re.search(rf"\\b{word}\\b", text.lower()) for word in profanity_words)
+
+st.set_page_config(page_title="CampaignSense Ultra", layout="wide")
+st.title("🚀 CampaignSense Ultra: Complete AI Marketing Suite")
+
+st.markdown("Analyze campaign success, customer sentiment, and visualize everything beautifully with data-backed insights.")
 
 tab1, tab2 = st.tabs(["📈 Campaign Predictor", "💬 Sentiment Analyzer"])
 
-# -------------------------------
-# 📈 Campaign Predictor Tab
-# -------------------------------
+# Campaign Predictor Tab
 with tab1:
     with st.form("campaign_form"):
-        st.subheader("📋 Campaign Details")
+        st.header("🎯 Marketing Campaign Input Form")
         col1, col2, col3 = st.columns(3)
 
         with col1:
@@ -63,10 +71,13 @@ with tab1:
             euribor3m = st.slider("3-Month Euribor Rate", 0.5, 5.0, 4.8)
             nr_employed = st.slider("# Employed in Economy", 4000, 5500, 5191)
 
-        submitted = st.form_submit_button("🔮 Predict Campaign Success")
+        submitted = st.form_submit_button("🔍 Predict Campaign Success")
 
     if submitted:
-        raw_data = pd.DataFrame({
+        st.markdown("---")
+        st.subheader("📊 Campaign Report & Visuals")
+
+        input_df = pd.DataFrame({
             'age': [age], 'job': [job], 'marital': [marital], 'education': [education],
             'default': [default], 'housing': [housing], 'loan': [loan], 'contact': [contact],
             'month': [month], 'day_of_week': [day_of_week], 'campaign': [campaign],
@@ -75,90 +86,83 @@ with tab1:
             'cons.conf.idx': [cons_conf_idx], 'euribor3m': [euribor3m], 'nr.employed': [nr_employed]
         })
 
-        encoded = pd.get_dummies(raw_data)
+        encoded = pd.get_dummies(input_df)
         encoded = encoded.reindex(columns=columns, fill_value=0)
-
         prediction = xgb_model.predict(encoded)[0]
-        probability = xgb_model.predict_proba(encoded)[0][1] * 100
+        prob = xgb_model.predict_proba(encoded)[0][1] * 100
 
-        st.markdown("---")
-        st.subheader("📊 Campaign Report")
+        colA, colB = st.columns(2)
 
-        if prediction == 1:
-            st.success(f"✅ This campaign is likely to SUCCEED!\nSuccess Probability: {probability:.2f}%")
-            st.markdown(f"""
-            - Job segment like **{job}** responds well.
-            - Timing in **{month.upper()}** shows strong engagement trends.
-            - Confidence boosted by **positive economic indicators**.
-            """)
-        else:
-            st.error(f"❌ This campaign may UNDERPERFORM.\nSuccess Probability: {probability:.2f}%")
-            st.markdown(f"""
-            - High last contact delay (pdays = {pdays}) or low previous engagement.
-            - Consider adjusting your outreach channel or timing (**{contact}** in **{month.upper()}**).
-            - Try sentiment-optimized messaging → Check Tab 2 to craft better content.
-            """)
-
-        gauge = go.Figure(go.Indicator(
-            mode="gauge+number",
-            value=probability,
-            title={'text': "Success Probability (%)"},
-            gauge={
-                'axis': {'range': [0, 100]},
-                'bar': {'color': "green" if prediction == 1 else "red"},
-                'steps': [
-                    {'range': [0, 50], 'color': "#FFCCCC"},
-                    {'range': [50, 80], 'color': "#FFE066"},
-                    {'range': [80, 100], 'color': "#B6F2A6"}
-                ]
-            }
-        ))
-        st.plotly_chart(gauge, use_container_width=True)
-
-        benchmark = pd.DataFrame({
-            'Campaign': ['Your Campaign', 'Benchmark Success'],
-            'Score': [probability, 73.5]
-        })
-        bar = px.bar(benchmark, x='Campaign', y='Score', color='Campaign',
-                     color_discrete_sequence=['#1dd1a1', '#8395a7'],
-                     title="📉 Success Comparison")
-        st.plotly_chart(bar, use_container_width=True)
-
-# -------------------------------
-# 💬 Sentiment Analyzer Tab
-# -------------------------------
-with tab2:
-    st.subheader("🧠 Sentiment Analyzer for Campaign Messaging")
-    st.markdown("Paste a message, tweet, or email copy to analyze tone before sending.")
-
-    user_text = st.text_area("✍️ Enter message or tweet text here:", height=120)
-    analyze = st.button("📥 Analyze Sentiment")
-
-    if analyze:
-        if user_text.strip() == "":
-            st.warning("Please enter some text to analyze.")
-        else:
-            vector = tfidf_vectorizer.transform([user_text])
-            sentiment = sentiment_model.predict(vector)[0]
-            confidence = sentiment_model.predict_proba(vector)[0][sentiment] * 100
-
-            if sentiment == 1:
-                st.success(f"🌟 Positive Sentiment Detected ({confidence:.2f}%)")
-                st.markdown("Great tone for engagement! This message may increase conversion chances.")
+        with colA:
+            if prediction == 1:
+                st.success(f"✅ Success Likely! Confidence: {prob:.2f}%")
             else:
-                st.error(f"⚠️ Negative Sentiment Detected ({confidence:.2f}%)")
-                st.markdown("Consider softening the message or focusing more on benefits.")
+                st.error(f"❌ Campaign Risk Alert! Success Chance: {prob:.2f}%")
 
-            pie = go.Figure(data=[
-                go.Pie(labels=['Negative', 'Positive'], values=[100 - confidence, confidence], hole=0.4)
-            ])
-            pie.update_layout(title="Sentiment Distribution", showlegend=True)
+        with colB:
+            fig = go.Figure(go.Indicator(
+                mode="gauge+number",
+                value=prob,
+                title={'text': "Success Probability (%)"},
+                gauge={'axis': {'range': [0, 100]}, 'bar': {'color': "#1DD1A1"}}
+            ))
+            st.plotly_chart(fig, use_container_width=True)
+
+        bar_data = pd.DataFrame({
+            'Category': ['Your Campaign', 'Benchmark Avg'],
+            'Probability': [prob, 74.2]
+        })
+        bar_fig = px.bar(bar_data, x='Category', y='Probability', color='Category',
+                         title='Your Score vs Industry Benchmark', text_auto=True)
+        st.plotly_chart(bar_fig, use_container_width=True)
+
+        radar_data = pd.DataFrame({
+            'Metrics': ['emp.var.rate', 'euribor3m', 'campaign', 'pdays', 'previous'],
+            'Value': [emp_var_rate, euribor3m, campaign, pdays, previous]
+        })
+        radar_fig = px.line_polar(radar_data, r='Value', theta='Metrics', line_close=True,
+                                   title="📌 Key Metric Spread", color_discrete_sequence=['#00cec9'])
+        st.plotly_chart(radar_fig, use_container_width=True)
+
+# Sentiment Analyzer Tab
+with tab2:
+    st.header("💬 Campaign Sentiment Analyzer")
+    st.markdown("Test your campaign message for emotional tone and effectiveness before launching.")
+
+    text = st.text_area("Paste campaign message or tweet here:", height=150)
+    run_sentiment = st.button("🔎 Analyze Sentiment")
+
+    if run_sentiment:
+        if not text.strip():
+            st.warning("Please enter a valid message.")
+        else:
+            flag_profanity = contains_profanity(text)
+            vec = tfidf_vectorizer.transform([text])
+            sent = sentiment_model.predict(vec)[0]
+            conf = sentiment_model.predict_proba(vec)[0][sent] * 100
+
+            pie = go.Figure(data=[go.Pie(labels=['Negative', 'Positive'], values=[100-conf, conf], hole=0.4)])
+            pie.update_layout(title="Sentiment Composition")
             st.plotly_chart(pie, use_container_width=True)
 
-            feedback = """
-            ### 💡 Message Optimization Tips
-            - Use action words ("Get started", "Explore", "Unlock")
-            - Be benefit-driven (highlight value, not just features)
-            - Keep tone friendly and enthusiastic
-            """
-            st.markdown(feedback)
+            wordcloud = WordCloud(width=600, height=300, background_color='white').generate(text)
+            st.subheader("🌥 Word Cloud Representation")
+            fig, ax = plt.subplots(figsize=(10, 4))
+            ax.imshow(wordcloud, interpolation='bilinear')
+            ax.axis("off")
+            st.pyplot(fig)
+
+            if sent == 1:
+                st.success(f"🌟 Positive Tone Detected ({conf:.2f}%)")
+            else:
+                st.error(f"⚠️ Caution: Negative Sentiment ({conf:.2f}%)")
+
+            if flag_profanity:
+                st.warning("🚫 Profanity detected. Rephrase for a professional tone.")
+
+            st.markdown("""
+            ### 🔧 Optimization Suggestions
+            - Add benefits and call-to-action words
+            - Remove aggressive/negative language
+            - Make it more personal and goal-driven
+            """)
