@@ -3,19 +3,16 @@ import joblib
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+import plotly.express as px
 
-# Load the trained model
+# Load model and columns
 xgb_model = joblib.load("xgboost_best_model.pkl")
+columns = joblib.load("xgb_model_columns.pkl")
 
-# Load the columns used in training (assumed to be stored)
-columns = joblib.load("xgb_model_columns.pkl")  # You must save this during model training
-
-# Categorical options (based on your original dataset)
-job_list = ['admin.', 'blue-collar', 'entrepreneur', 'housemaid', 'management',
-            'retired', 'self-employed', 'services', 'student', 'technician', 'unemployed']
+# Categorical options
+job_list = ['admin.', 'blue-collar', 'entrepreneur', 'housemaid', 'management', 'retired', 'self-employed', 'services', 'student', 'technician', 'unemployed']
 marital_list = ['divorced', 'married', 'single']
-edu_list = ['basic.4y', 'basic.6y', 'basic.9y', 'high.school', 'illiterate',
-            'professional.course', 'university.degree']
+edu_list = ['basic.4y', 'basic.6y', 'basic.9y', 'high.school', 'illiterate', 'professional.course', 'university.degree']
 default_list = ['no', 'yes']
 housing_list = ['no', 'yes']
 loan_list = ['no', 'yes']
@@ -27,7 +24,7 @@ poutcome_list = ['failure', 'nonexistent', 'success']
 st.set_page_config(page_title="CampaignSense Pro", layout="wide")
 st.title("🚀 CampaignSense Pro: Full-Feature Marketing Optimizer")
 
-st.markdown("Fill in the campaign details below. The model will predict whether your campaign is likely to succeed and offer insights.")
+st.markdown("Enter detailed campaign info below to receive an AI-generated success prediction and an executive-style marketing report ✨")
 
 with st.form("campaign_form"):
     st.subheader("📋 Campaign Details")
@@ -56,52 +53,61 @@ with st.form("campaign_form"):
         cons_price_idx = st.slider("Consumer Price Index", 92.0, 95.0, 93.994)
         cons_conf_idx = st.slider("Consumer Confidence Index", -50.0, -20.0, -36.4)
         euribor3m = st.slider("3-Month Euribor Rate", 0.5, 5.0, 4.8)
-        nr_employed = st.slider("# Employed in Economy", 4000, 5500, 5191)
+        nr_employed = st.slider("# Employed in Economy", 4000, 5500, 5191.0)
 
     submitted = st.form_submit_button("🔮 Predict Campaign Success")
 
 if submitted:
-    # Create raw input dataframe
     raw_data = pd.DataFrame({
-        'age': [age],
-        'job': [job],
-        'marital': [marital],
-        'education': [education],
-        'default': [default],
-        'housing': [housing],
-        'loan': [loan],
-        'contact': [contact],
-        'month': [month],
-        'day_of_week': [day_of_week],
-        'campaign': [campaign],
-        'pdays': [pdays],
-        'previous': [previous],
-        'poutcome': [poutcome],
-        'emp.var.rate': [emp_var_rate],
-        'cons.price.idx': [cons_price_idx],
-        'cons.conf.idx': [cons_conf_idx],
-        'euribor3m': [euribor3m],
-        'nr.employed': [nr_employed]
+        'age': [age], 'job': [job], 'marital': [marital], 'education': [education],
+        'default': [default], 'housing': [housing], 'loan': [loan], 'contact': [contact],
+        'month': [month], 'day_of_week': [day_of_week], 'campaign': [campaign],
+        'pdays': [pdays], 'previous': [previous], 'poutcome': [poutcome],
+        'emp.var.rate': [emp_var_rate], 'cons.price.idx': [cons_price_idx],
+        'cons.conf.idx': [cons_conf_idx], 'euribor3m': [euribor3m], 'nr.employed': [nr_employed]
     })
 
-    # One-hot encode user input
-    user_df_encoded = pd.get_dummies(raw_data)
+    encoded = pd.get_dummies(raw_data)
+    encoded = encoded.reindex(columns=columns, fill_value=0)
 
-    # Align with model training columns
-    user_df_encoded = user_df_encoded.reindex(columns=columns, fill_value=0)
+    prediction = xgb_model.predict(encoded)[0]
+    probability = xgb_model.predict_proba(encoded)[0][1] * 100
 
-    # Predict
-    prediction = xgb_model.predict(user_df_encoded)[0]
-    probability = xgb_model.predict_proba(user_df_encoded)[0][1] * 100
+    st.markdown("---")
+    st.subheader("📊 Campaign Report")
 
-    # Display result
     if prediction == 1:
-        st.success(f"✅ This campaign is likely to SUCCEED!\nSuccess Probability: {probability:.2f}%")
-    else:
-        st.error(f"❌ This campaign might not perform well.\nSuccess Probability: {probability:.2f}%")
+        st.success(f"✅ Prediction: This campaign is likely to SUCCEED with **{probability:.2f}%** confidence.")
 
-    # Gauge chart
-    fig = go.Figure(go.Indicator(
+        st.markdown("""
+        **Why it works:**
+        - 🎯 Job group like *{job}* tends to perform well.
+        - 📅 Best results often seen in *{month.upper()}*.
+        - 📈 Economic indicators suggest favorable climate.
+        
+        **Suggestions:**
+        - Keep using *{contact}* channel for strong engagement.
+        - Consider retargeting with similar profiles in the same month.
+        """)
+
+    else:
+        st.error(f"❌ Prediction: Campaign may UNDERPERFORM. Success probability is only **{probability:.2f}%**")
+
+        st.markdown("""
+        **Possible Issues:**
+        - 🚫 High delay since last contact (pdays = {pdays})
+        - 🧊 Poor prior campaign engagement (previous = {previous})
+        - ❗ Segment like *{job}* or timing (*{month.upper()}*) may not be ideal
+
+        **Recommendations:**
+        - Try targeting in months like *MAY–JUL*
+        - Use multichannel contact approach (email + call)
+        - Adjust messaging tone for reactivation campaigns
+        """)
+
+    st.markdown("---")
+
+    gauge = go.Figure(go.Indicator(
         mode="gauge+number",
         value=probability,
         title={'text': "Success Probability (%)"},
@@ -115,6 +121,17 @@ if submitted:
             ]
         }
     ))
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(gauge, use_container_width=True)
 
-    st.info("Model used: Full-feature XGBoost with one-hot encoded campaign metadata")
+    # Extra visual insight
+    benchmark_data = pd.DataFrame({
+        'Label': ['Your Campaign', 'Average Successful Campaign'],
+        'Success Score': [probability, 72.5]  # Mock benchmark average
+    })
+
+    bar_chart = px.bar(benchmark_data, x='Label', y='Success Score', color='Label',
+                       color_discrete_sequence=['#1DD1A1', '#576574'], title="📊 Your Campaign vs Success Benchmark")
+    st.plotly_chart(bar_chart, use_container_width=True)
+
+    st.markdown("---")
+    st.info("This is an AI-powered simulation. Actual performance may vary based on unseen behavioral, timing, or market factors.")
